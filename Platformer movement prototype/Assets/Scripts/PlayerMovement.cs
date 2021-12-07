@@ -5,35 +5,48 @@ using UnityEngine.InputSystem;
 
 public class PlayerMovement : MonoBehaviour
 {
+    // Constants
+    const float framesPerSecond = 60;
     // Public values
-    public float inputBufferDuration;
+    public float inputBufferDurationFrames;
     public float movementSpeed;
     public float movementAccel;
-    public float jumpSpeed;
+    public float jumpHeight;
     public float dashDistance;
     public float dashSpeed;
+    public float dashCooldown;
+    public float maxGroundAngle;
+    public float maxWallAngle;
     // Components
     Rigidbody2D _rigidbody;
     // Time tracking
     float deltaFrames;
     float currentTime;
     // Saved input values
-    enum BufferedInput {
+    enum BufferedInput
+    {
+        NONE,
         JUMP,
+        // MIN_JUMP,
         DASH
     };
-    BufferedInput bufferedInput;
+    BufferedInput bufferedInput = BufferedInput.NONE;
     float bufferedTimestamp; // timestamp at which we buffered the last input
     Vector2 moveInput;
     // Movement state data
-    enum MovementState {
+    enum MovementState
+    {
         NORMAL,
+        JUMPING,
         DASHING
     };
     MovementState movementState;
     float stateTimestamp; // timestamp at which we entered the current state
-    bool grounded;
-    bool hasDash;
+    int groundCount = 0; // number of ground objects we are in contact with
+    int wallCount = 0; // number of wall objects we are in contact with
+    // bool jumpReleaseBuffered = false;
+    bool hasDash = true;
+    float dashTimestamp = 0;
     float dashDirection;
     void Awake()
     {
@@ -42,49 +55,81 @@ public class PlayerMovement : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+
     }
 
     // Update is called once per frame
     void Update()
     {
-        deltaFrames = Time.deltaTime * 60;
+        // Update timekeeping
+        deltaFrames = Time.deltaTime * framesPerSecond;
         currentTime += deltaFrames;
+
+        // Update movement state
+        if (movementState != MovementState.DASHING &&
+            currentTime - dashTimestamp >= dashCooldown &&
+            bufferedInput == BufferedInput.DASH)
+        {
+            // If our dash cooldown is over and we buffered a dash, process it
+            bufferedInput = BufferedInput.NONE;
+            startDash();
+        }
+
+        // Change rigidbody velocity based on movement state
         move();
     }
 
     void move()
     {
         Vector2 oldVel = _rigidbody.velocity;
-        Vector2 newVel;
-        
+        Vector2 newVel = new Vector2(oldVel.x, oldVel.y);
+
         float stateElapsedFrames = currentTime - stateTimestamp;
-        
+
         switch (movementState)
         {
-        case MovementState.NORMAL:
-            float xVelMax = Mathf.Abs(moveInput.x * movementSpeed);
-            float xVelUncapped = oldVel.x + Mathf.Sign(moveInput.x) * movementAccel * deltaFrames;
-            float xVel = Mathf.Max(-xVelMax, Mathf.Min(xVelMax, xVelUncapped));
+            case MovementState.JUMPING:
+                float jumpDuration = framesPerSecond * Mathf.Sqrt(-2 * jumpHeight /
+                    Physics2D.gravity.y);
+                // newVel.y += (maxJumpSpeed - minJumpSpeed) / maxJumpDuration * deltaFrames;
+                // if (stateElapsedFrames >= maxJumpDuration || // completed full jump duration
+                //     (stateElapsedFrames >= minJumpDuration && // completed min jump duration and jump released
+                //      jumpReleaseBuffered))
+                // {
+                if (stateElapsedFrames >= jumpDuration)
+                {
+                    // Finish jump
+                    // newVel.y = 0;
+                    // jumpReleaseBuffered = false;
+                    setMovementState(MovementState.NORMAL);
+                }
+                // Debug.Log(newVel.y + ", " + stateElapsedFrames);
+                goto case MovementState.NORMAL; // fall through
+            case MovementState.NORMAL:
+                float xVelMax = Mathf.Abs(moveInput.x * movementSpeed);
+                float xVelUncapped = oldVel.x + Mathf.Sign(moveInput.x) * movementAccel * deltaFrames;
+                float xVel = Mathf.Max(-xVelMax, Mathf.Min(xVelMax, xVelUncapped));
 
-            newVel = new Vector2(xVel, oldVel.y);
-            break;
-        case MovementState.DASHING:
-            float dashDuration = dashDistance / dashSpeed;
-            if (stateElapsedFrames > dashDuration)
-            {
-                // Finish dash
-                _rigidbody.gravityScale = 1;
-                if (grounded) hasDash = true;
-                setMovementState(MovementState.NORMAL);
-                return;
-            }
+                newVel.x = xVel;
+                break;
+            case MovementState.DASHING:
+                float dashDuration = dashDistance / dashSpeed;
+                if (stateElapsedFrames > dashDuration)
+                {
+                    // Finish dash
+                    _rigidbody.gravityScale = 1;
+                    if (IsGrounded()) hasDash = true;
+                    dashTimestamp = currentTime;
+                    setMovementState(MovementState.NORMAL);
+                    return;
+                }
 
-            newVel = getDashVelocity(dashDirection, stateElapsedFrames);
-            break;
-        default:
-            newVel = new Vector2(0, 0);
-            break;
+                newVel = getDashVelocity(dashDirection, stateElapsedFrames);
+                break;
+            default:
+                Debug.LogError("Unknown movement state!");
+                newVel = new Vector2(0, 0);
+                break;
         }
 
         _rigidbody.velocity = newVel;
@@ -95,14 +140,73 @@ public class PlayerMovement : MonoBehaviour
         return new Vector2(dashDirection * dashSpeed, 0);
     }
 
-    public void OnMove(InputValue value)
+    public void OnMove(InputAction.CallbackContext context)
     {
-        moveInput = value.Get<Vector2>();
+        moveInput = context.ReadValue<Vector2>();
     }
 
-    public void OnDash()
+    public void OnJump(InputAction.CallbackContext context)
     {
-        if (movementState == MovementState.NORMAL && hasDash)
+        if (context.started)
+        {
+            // Button down
+            if (movementState == MovementState.NORMAL && IsGrounded())
+            {
+                startJump();
+            }
+            else
+            {
+                bufferInput(BufferedInput.JUMP);
+            }
+        }
+        else if (context.canceled)
+        {
+            // Button up
+            endJump();
+        }
+    }
+
+    void startJump()
+    {
+        // Set Y velocity to min jump speed
+        float jumpSpeed = Mathf.Sqrt(-2 *
+            (Physics2D.gravity.y / (framesPerSecond * framesPerSecond)) *
+            jumpHeight);
+        _rigidbody.velocity = new Vector2(_rigidbody.velocity.x, jumpSpeed);
+        // jumpReleaseBuffered = false;
+        setMovementState(MovementState.JUMPING);
+    }
+
+    void endJump()
+    {
+        if (movementState == MovementState.JUMPING)
+        {
+            // Zero out velocity
+            _rigidbody.velocity = new Vector2(_rigidbody.velocity.x, 0);
+            setMovementState(MovementState.NORMAL);
+            // // If we are jumping buffer a jump release
+            // jumpReleaseBuffered = true;
+        }
+        // else if (bufferedInput == BufferedInput.JUMP)
+        // {
+        //     // If we buffered a jump then make it a min height jump
+        //     bufferedInput = BufferedInput.MIN_JUMP;
+        // }
+    }
+
+    public void OnDash(InputAction.CallbackContext context)
+    {
+        if (context.started)
+        {
+            // Button down
+            startDash();
+        }
+    }
+    
+    void startDash()
+    {
+        if (movementState == MovementState.NORMAL && hasDash
+            && currentTime - dashTimestamp >= dashCooldown)
         {
             dashDirection = Mathf.Sign(moveInput.x);
             _rigidbody.gravityScale = 0;
@@ -115,23 +219,6 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    public void OnJump()
-    {
-        if (movementState == MovementState.NORMAL && grounded)
-        {
-            Vector2 oldVel = _rigidbody.velocity;
-
-            float yVel = jumpSpeed;
-
-            Vector2 newVel = new Vector2(oldVel.x, yVel);
-            _rigidbody.velocity = newVel;
-        }
-        else
-        {
-            bufferInput(BufferedInput.JUMP);
-        }
-    }
-
     /// <summary>
     /// Sent when an incoming collider makes contact with this object's
     /// collider (2D physics only).
@@ -139,20 +226,17 @@ public class PlayerMovement : MonoBehaviour
     /// <param name="other">The Collision2D data associated with this collision.</param>
     void OnCollisionEnter2D(Collision2D other)
     {
-        grounded = true;
-        hasDash = true;
+        detectTerrainContacts(other);
+    }
 
-        // Print how many points are colliding with this transform
-        // Debug.Log("Points colliding: " + other.contacts.Length);
-
-        // Print the normal of the first point in the collision.
-        // Debug.Log("Normal of the first point: " + other.contacts[0].normal);
-
-        // Draw a different colored ray for every normal in the collision
-        foreach (var item in other.contacts)
-        {
-            Debug.DrawRay(item.point, item.normal * 100, Random.ColorHSV(0f, 1f, 1f, 1f, 0.5f, 1f), 10f);
-        }
+    /// <summary>
+    /// Sent each frame where a collider on another object is touching
+    /// this object's collider (2D physics only).
+    /// </summary>
+    /// <param name="other">The Collision2D data associated with this collision.</param>
+    void OnCollisionStay2D(Collision2D other)
+    {
+        detectTerrainContacts(other);
     }
 
     /// <summary>
@@ -162,33 +246,148 @@ public class PlayerMovement : MonoBehaviour
     /// <param name="other">The Collision2D data associated with this collision.</param>
     void OnCollisionExit2D(Collision2D other)
     {
-        grounded = false;
+        LevelTerrain terrain = other.gameObject.GetComponent<LevelTerrain>();
+        if (terrain != null)
+        {
+            updateContactCounts(terrain.RemoveGroundContact(this), terrain.RemoveWallContact(this));
+        }
     }
 
-    void setMovementState(MovementState state) {
+    void detectTerrainContacts(Collision2D other)
+    {
+        LevelTerrain terrain = other.gameObject.GetComponent<LevelTerrain>();
+        if (terrain != null)
+        {
+            bool groundContact = false;
+            bool wallContact = false;
+
+            // Iterate over every normal in the collision
+            foreach (var item in other.contacts)
+            {
+                // Detect ground and wall contacts
+                if (Vector2.Angle(item.normal, new Vector2(0, 1)) < maxGroundAngle)
+                {
+                    groundContact = true;
+                }
+                if (Vector2.Angle(item.normal, new Vector2(1, 0)) < maxWallAngle ||
+                    Vector2.Angle(item.normal, new Vector2(-1, 0)) < maxWallAngle)
+                {
+                    wallContact = true;
+                }
+                // Debug.DrawRay(item.point, item.normal * 100, Random.ColorHSV(0f, 1f, 1f, 1f, 0.5f, 1f), 10f);
+            }
+
+            // Update ground and wall contact counts
+            int groundIncrement;
+            int wallIncrement;
+            if (groundContact)
+            {
+                groundIncrement = terrain.AddGroundContact(this);
+            }
+            else
+            {
+                groundIncrement = terrain.RemoveGroundContact(this);
+            }
+            if (wallContact)
+            {
+                wallIncrement = terrain.AddWallContact(this);
+            }
+            else
+            {
+                wallIncrement = terrain.RemoveWallContact(this);
+            }
+            updateContactCounts(groundIncrement, wallIncrement);
+        }
+    }
+
+    void setMovementState(MovementState state)
+    {
         movementState = state;
         stateTimestamp = currentTime;
 
         // Process buffered input if we returned to normal state
-        if (state == MovementState.NORMAL &&
-            currentTime - bufferedTimestamp <= inputBufferDuration)
+        if (state == MovementState.NORMAL)
+        {
+            processInputBuffer();
+        }
+    }
+
+    void processInputBuffer()
+    {
+        if (currentTime - bufferedTimestamp <= inputBufferDurationFrames)
         {
             // Debug.Log("Processing buffered input " + bufferedInput);
             switch (bufferedInput)
             {
-            case BufferedInput.JUMP:
-                OnJump();
-                break;
-            case BufferedInput.DASH:
-                OnDash();
-                break;
+                case BufferedInput.JUMP:
+                    startJump();
+                    break;
+                // case BufferedInput.MIN_JUMP:
+                //     startJump();
+                //     jumpReleaseBuffered = true;
+                //     break;
+                case BufferedInput.DASH:
+                    startDash();
+                    break;
+            }
+            bufferedInput = BufferedInput.NONE;
+        }
+        else
+        {
+            // Debug.Log("buffer expired");
+        }
+    }
+
+    void bufferInput(BufferedInput input)
+    {
+        bufferedInput = input;
+        bufferedTimestamp = currentTime;
+        // Debug.Log("Buffered input " + input);
+    }
+
+    void updateContactCounts(int groundIncrement, int wallIncrement)
+    {
+        bool wasGrounded = IsGrounded();
+        bool wasOnWall = IsOnWall();
+        groundCount += groundIncrement;
+        wallCount += wallIncrement;
+        Debug.Assert(groundCount >= 0);
+        Debug.Assert(wallCount >= 0);
+
+        if (IsGrounded() && !wasGrounded)
+        {
+            // Debug.Log("grounded");
+            hasDash = true;
+            if (movementState == MovementState.JUMPING) setMovementState(MovementState.NORMAL);
+            processInputBuffer();
+        }
+        else if (IsOnWall() && !wasOnWall)
+        {
+            // Debug.Log("on wall");
+            hasDash = true;
+            if (movementState == MovementState.JUMPING) setMovementState(MovementState.NORMAL);
+            processInputBuffer();
+        }
+        else if (!IsGrounded() && !IsOnWall())
+        {
+            // Debug.Log("free");
+            if (wasGrounded)
+            {
+                
+            }
+            else if (wasOnWall)
+            {
+
             }
         }
     }
 
-    void bufferInput(BufferedInput input) {
-        bufferedInput = input;
-        bufferedTimestamp = currentTime;
-        // Debug.Log("Buffered input " + input);
+    public bool IsGrounded()
+    {
+        return groundCount > 0;
+    }
+    public bool IsOnWall()
+    {
+        return wallCount > 0 && groundCount == 0;
     }
 }

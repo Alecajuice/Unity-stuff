@@ -218,6 +218,7 @@ GameObject:
   - component: {fileID: 907863513}
   - component: {fileID: 907863512}
   - component: {fileID: 907863511}
+  - component: {fileID: 907863514}
   m_Layer: 0
   m_Name: Closed Sprite Shape (1)
   m_TagString: Untagged
@@ -265,9 +266,9 @@ PolygonCollider2D:
   m_Points:
     m_Paths:
     - - {x: -9.252876, y: 4.208374}
-      - {x: -9.252876, y: -3.2623224}
-      - {x: -11.750517, y: -3.5745265}
-      - {x: -11.8340225, y: 6.435321}
+      - {x: -9.252876, y: -3.2916257}
+      - {x: -11.750735, y: -3.291626}
+      - {x: -11.834078, y: 6.4353213}
       - {x: 10.972073, y: 6.5259695}
       - {x: 10.721563, y: 4.208374}
       - {x: -9.0041065, y: 4.208374}
@@ -420,6 +421,18 @@ SpriteShapeRenderer:
   m_LocalAABB:
     m_Center: {x: -0.43100262, y: 1.6171713, z: -0.00029999999}
     m_Extent: {x: 11.403075, y: 4.9087977, z: 0.00029999999}
+--- !u!114 &907863514
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 907863509}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 03820b471f7ff714e9b5abf08abbfe8a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1566832969
 GameObject:
   m_ObjectHideFlags: 0
@@ -464,6 +477,7 @@ GameObject:
   - component: {fileID: 2136865869}
   - component: {fileID: 2136865868}
   - component: {fileID: 2136865870}
+  - component: {fileID: 2136865871}
   m_Layer: 0
   m_Name: Closed Sprite Shape
   m_TagString: Untagged
@@ -667,6 +681,18 @@ PolygonCollider2D:
       - {x: 10.232835, y: 4.708374}
       - {x: 10.245555, y: 4.708374}
       - {x: 10.74869, y: 4.708374}
+--- !u!114 &2136865871
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2136865866}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 03820b471f7ff714e9b5abf08abbfe8a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1001 &1888610468192762067
 PrefabInstance:
   m_ObjectHideFlags: 0

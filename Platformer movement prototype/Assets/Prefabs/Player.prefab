@@ -94,7 +94,7 @@ GameObject:
   - component: {fileID: 1711283221679544135}
   - component: {fileID: 6151181344267306175}
   - component: {fileID: 1433339071971714720}
-  - component: {fileID: 6752641351389079380}
+  - component: {fileID: 6192291905960246457}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -145,12 +145,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7ac2510c1e89f5a42ba803a57b41daee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  inputBufferDuration: 8
+  inputBufferDurationFrames: 8
   movementSpeed: 10
   movementAccel: 3
-  jumpSpeed: 20
+  jumpHeight: 500
   dashDistance: 300
-  dashSpeed: 20
+  dashSpeed: 30
+  dashCooldown: 20
+  maxGroundAngle: 45
+  maxWallAngle: 15
 --- !u!50 &1433339071971714720
 Rigidbody2D:
   serializedVersion: 4
@@ -172,7 +175,7 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 4
---- !u!114 &6752641351389079380
+--- !u!114 &6192291905960246457
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -185,7 +188,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Actions: {fileID: -944628639613478452, guid: c03709a00848531499a752dd6e08416b, type: 3}
-  m_NotificationBehavior: 0
+  m_NotificationBehavior: 2
   m_UIInputModule: {fileID: 0}
   m_DeviceLostEvent:
     m_PersistentCalls:
@@ -199,10 +202,10 @@ MonoBehaviour:
   m_ActionEvents:
   - m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 6752641351389079380}
-        m_TargetAssemblyTypeName: UnityEngine.Component, UnityEngine
-        m_MethodName: SendMessage
-        m_Mode: 5
+      - m_Target: {fileID: 6151181344267306175}
+        m_TargetAssemblyTypeName: PlayerMovement, Assembly-CSharp
+        m_MethodName: OnMove
+        m_Mode: 0
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -217,6 +220,38 @@ MonoBehaviour:
       m_Calls: []
     m_ActionId: d602bc83-b6eb-4066-9407-aff136d9eba0
     m_ActionName: Player/Look[/XInputControllerWindows/rightStick,/Mouse/delta,/Touchscreen/delta]
+  - m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 6151181344267306175}
+        m_TargetAssemblyTypeName: PlayerMovement, Assembly-CSharp
+        m_MethodName: OnJump
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 1
+    m_ActionId: 41de5ede-caf7-4cf6-81e5-3856b83bcac8
+    m_ActionName: Player/Jump[/Keyboard/space,/XInputControllerWindows/buttonSouth]
+  - m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 6151181344267306175}
+        m_TargetAssemblyTypeName: PlayerMovement, Assembly-CSharp
+        m_MethodName: OnDash
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+    m_ActionId: 02159694-13fb-4142-9cfc-d3390acbb4ea
+    m_ActionName: Player/Dash[/Keyboard/leftShift,/XInputControllerWindows/leftShoulder]
   - m_PersistentCalls:
       m_Calls: []
     m_ActionId: 7c8b8174-8673-457c-9eb2-e0957259b84f
@@ -257,10 +292,6 @@ MonoBehaviour:
       m_Calls: []
     m_ActionId: 206e7ca7-4715-4e34-99b5-b743d538ba38
     m_ActionName: UI/TrackedDeviceOrientation
-  - m_PersistentCalls:
-      m_Calls: []
-    m_ActionId: 41de5ede-caf7-4cf6-81e5-3856b83bcac8
-    m_ActionName: Player/Jump[/Keyboard/space,/XInputControllerWindows/buttonSouth]
   m_NeverAutoSwitchControlSchemes: 0
   m_DefaultControlScheme: 
   m_DefaultActionMap: Player
