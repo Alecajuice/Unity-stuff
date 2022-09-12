@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : MonoBehaviour
 {
     // Constants
-    const float framesPerSecond = 60;
+    // const float framesPerSecond = 60;
     // Public values
     public float inputBufferDurationFrames;
     public float movementSpeed;
@@ -20,14 +20,12 @@ public class PlayerMovement : MonoBehaviour
     // Components
     Rigidbody2D _rigidbody;
     // Time tracking
-    float deltaFrames;
     float currentTime;
     // Saved input values
     enum BufferedInput
     {
         NONE,
         JUMP,
-        // MIN_JUMP,
         DASH
     };
     BufferedInput bufferedInput = BufferedInput.NONE;
@@ -44,7 +42,6 @@ public class PlayerMovement : MonoBehaviour
     float stateTimestamp; // timestamp at which we entered the current state
     int groundCount = 0; // number of ground objects we are in contact with
     int wallCount = 0; // number of wall objects we are in contact with
-    // bool jumpReleaseBuffered = false;
     bool hasDash = true;
     float dashTimestamp = 0;
     float dashDirection;
@@ -55,15 +52,14 @@ public class PlayerMovement : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-
+        currentTime = 0;
     }
 
     // Update is called once per frame
     void Update()
     {
         // Update timekeeping
-        deltaFrames = Time.deltaTime * framesPerSecond;
-        currentTime += deltaFrames;
+        currentTime += Time.deltaTime;
 
         // Update movement state
         if (movementState != MovementState.DASHING &&
@@ -84,37 +80,30 @@ public class PlayerMovement : MonoBehaviour
         Vector2 oldVel = _rigidbody.velocity;
         Vector2 newVel = new Vector2(oldVel.x, oldVel.y);
 
-        float stateElapsedFrames = currentTime - stateTimestamp;
+        float stateElapsedTime = currentTime - stateTimestamp;
 
         switch (movementState)
         {
             case MovementState.JUMPING:
-                float jumpDuration = framesPerSecond * Mathf.Sqrt(-2 * jumpHeight /
+                float jumpDuration = Mathf.Sqrt(-2 * jumpHeight /
                     Physics2D.gravity.y);
-                // newVel.y += (maxJumpSpeed - minJumpSpeed) / maxJumpDuration * deltaFrames;
-                // if (stateElapsedFrames >= maxJumpDuration || // completed full jump duration
-                //     (stateElapsedFrames >= minJumpDuration && // completed min jump duration and jump released
-                //      jumpReleaseBuffered))
-                // {
-                if (stateElapsedFrames >= jumpDuration)
+                if (stateElapsedTime >= jumpDuration)
                 {
                     // Finish jump
-                    // newVel.y = 0;
-                    // jumpReleaseBuffered = false;
                     setMovementState(MovementState.NORMAL);
                 }
                 // Debug.Log(newVel.y + ", " + stateElapsedFrames);
                 goto case MovementState.NORMAL; // fall through
             case MovementState.NORMAL:
                 float xVelMax = Mathf.Abs(moveInput.x * movementSpeed);
-                float xVelUncapped = oldVel.x + Mathf.Sign(moveInput.x) * movementAccel * deltaFrames;
+                float xVelUncapped = oldVel.x + Mathf.Sign(moveInput.x) * movementAccel * Time.deltaTime;
                 float xVel = Mathf.Max(-xVelMax, Mathf.Min(xVelMax, xVelUncapped));
 
                 newVel.x = xVel;
                 break;
             case MovementState.DASHING:
                 float dashDuration = dashDistance / dashSpeed;
-                if (stateElapsedFrames > dashDuration)
+                if (stateElapsedTime > dashDuration)
                 {
                     // Finish dash
                     _rigidbody.gravityScale = 1;
@@ -124,7 +113,7 @@ public class PlayerMovement : MonoBehaviour
                     return;
                 }
 
-                newVel = getDashVelocity(dashDirection, stateElapsedFrames);
+                newVel = getDashVelocity(dashDirection, stateElapsedTime);
                 break;
             default:
                 Debug.LogError("Unknown movement state!");
@@ -168,10 +157,13 @@ public class PlayerMovement : MonoBehaviour
 
     void startJump()
     {
+        // Debug.Log("Start jump");
         // Set Y velocity to min jump speed
+        float jumpSpeedCorrection = -0.5f * Time.fixedDeltaTime * Physics2D.gravity.y; // Compensate for changing velocity directly
         float jumpSpeed = Mathf.Sqrt(-2 *
-            (Physics2D.gravity.y / (framesPerSecond * framesPerSecond)) *
-            jumpHeight);
+            Physics2D.gravity.y *
+            jumpHeight) +
+            jumpSpeedCorrection;
         _rigidbody.velocity = new Vector2(_rigidbody.velocity.x, jumpSpeed);
         // jumpReleaseBuffered = false;
         setMovementState(MovementState.JUMPING);
@@ -184,14 +176,7 @@ public class PlayerMovement : MonoBehaviour
             // Zero out velocity
             _rigidbody.velocity = new Vector2(_rigidbody.velocity.x, 0);
             setMovementState(MovementState.NORMAL);
-            // // If we are jumping buffer a jump release
-            // jumpReleaseBuffered = true;
         }
-        // else if (bufferedInput == BufferedInput.JUMP)
-        // {
-        //     // If we buffered a jump then make it a min height jump
-        //     bufferedInput = BufferedInput.MIN_JUMP;
-        // }
     }
 
     public void OnDash(InputAction.CallbackContext context)
@@ -320,12 +305,8 @@ public class PlayerMovement : MonoBehaviour
             switch (bufferedInput)
             {
                 case BufferedInput.JUMP:
-                    startJump();
+                    if (movementState == MovementState.NORMAL && IsGrounded()) startJump();
                     break;
-                // case BufferedInput.MIN_JUMP:
-                //     startJump();
-                //     jumpReleaseBuffered = true;
-                //     break;
                 case BufferedInput.DASH:
                     startDash();
                     break;
@@ -370,10 +351,9 @@ public class PlayerMovement : MonoBehaviour
         }
         else if (!IsGrounded() && !IsOnWall())
         {
-            // Debug.Log("free");
             if (wasGrounded)
             {
-                
+                // Debug.Log("free");
             }
             else if (wasOnWall)
             {
